@@ -36,6 +36,7 @@ static const AMFObjectProperty AMFProp_Invalid = { {0, 0}, AMF_INVALID };
 static const AVal AV_empty = { 0, 0 };
 
 /* Data is Big-Endian */
+/* 将以data为起始地址的16位数据转化为无符号短整型值 */
 unsigned short
 AMF_DecodeInt16(const char *data)
 {
@@ -45,6 +46,7 @@ AMF_DecodeInt16(const char *data)
   return val;
 }
 
+/* 将以data为起始地址的24位数据转化为无符号短整型值 */
 unsigned int
 AMF_DecodeInt24(const char *data)
 {
@@ -54,6 +56,7 @@ AMF_DecodeInt24(const char *data)
   return val;
 }
 
+/* 将以data为起始地址的32位数据转化为无符号短整型值 */
 unsigned int
 AMF_DecodeInt32(const char *data)
 {
@@ -63,12 +66,15 @@ AMF_DecodeInt32(const char *data)
   return val;
 }
 
+/* 将以data为起始地址的字符串数据解析出来 数据前两位是字符串长度, 后边是字符串数据  bv->av_len 表示字符串的长度 占2个字节; bv->av_val 缓冲区用于保存实际的字符串。 */
 void
 AMF_DecodeString(const char *data, AVal *bv)
 {
   bv->av_len = AMF_DecodeInt16(data);
   bv->av_val = (bv->av_len > 0) ? (char *)data + 2 : NULL;
 }
+
+/* 将以data为起始地址的字符串数据解析出来 数据前四位是字符串长度, 后边是字符串数据  bv->av_len 表示字符串的长度 占4个字节; bv->av_val 缓冲区用于保存实际的字符串。 */
 
 void
 AMF_DecodeLongString(const char *data, AVal *bv)
@@ -77,6 +83,7 @@ AMF_DecodeLongString(const char *data, AVal *bv)
   bv->av_val = (bv->av_len > 0) ? (char *)data + 4 : NULL;
 }
 
+/* 将以data为起始地址的8个字节数据转化double值 */
 double
 AMF_DecodeNumber(const char *data)
 {
@@ -127,12 +134,14 @@ AMF_DecodeNumber(const char *data)
   return dVal;
 }
 
+/* 将以data为起始地址的1个字节数据转化boolean值 */
 int
 AMF_DecodeBoolean(const char *data)
 {
   return *data != 0;
 }
 
+/* 将短整型值转化为2个字节保存到缓冲区output中. output 后移两位*/
 char *
 AMF_EncodeInt16(char *output, char *outend, short nVal)
 {
@@ -144,6 +153,7 @@ AMF_EncodeInt16(char *output, char *outend, short nVal)
   return output+2;
 }
 
+/* 将int型值转化为3个字节保存到缓冲区output中. output 后移三位*/
 char *
 AMF_EncodeInt24(char *output, char *outend, int nVal)
 {
@@ -156,6 +166,7 @@ AMF_EncodeInt24(char *output, char *outend, int nVal)
   return output+3;
 }
 
+/* 将int型值转化为4个字节保存到缓冲区output中. output 后移四位*/
 char *
 AMF_EncodeInt32(char *output, char *outend, int nVal)
 {
@@ -169,39 +180,49 @@ AMF_EncodeInt32(char *output, char *outend, int nVal)
   return output+4;
 }
 
+/* 将bv中的字符串编码到缓冲区output中. 编码的格式为  | 类型(1字节) |  长度(2或4字节) | 实际的字符串    | */
 char *
 AMF_EncodeString(char *output, char *outend, const AVal *bv)
 {
+  // - 确保 output 空间足够大
   if ((bv->av_len < 65536 && output + 1 + 2 + bv->av_len > outend) ||
 	output + 1 + 4 + bv->av_len > outend)
     return NULL;
 
   if (bv->av_len < 65536)
     {
+      //- 短字符串类型; 占用 1 字节
       *output++ = AMF_STRING;
-
+      // - 赋值字符串的长度; 占用 2 字节
       output = AMF_EncodeInt16(output, outend, bv->av_len);
     }
   else
     {
-      *output++ = AMF_LONG_STRING;
-
+      //- 长字符串类型; 占用 1 字节
+      *output++ = AMF_LONG_STRING;  
+      // - 赋值字符串的长度; 占用 4 字节
       output = AMF_EncodeInt32(output, outend, bv->av_len);
     }
+
+    //- 拷贝字符串数据
   memcpy(output, bv->av_val, bv->av_len);
   output += bv->av_len;
 
   return output;
 }
 
+/* 将double值编码到缓冲区output中. 编码的格式为： | 类型(1字节) |   double值(8字节) | */
 char *
 AMF_EncodeNumber(char *output, char *outend, double dVal)
 {
+  // - 确保缓冲区的空间足够大
   if (output+1+8 > outend)
     return NULL;
 
+// - 设置类型为 number 类型
   *output++ = AMF_NUMBER;	/* type: Number */
 
+// - 赋值number 的值
 #if __FLOAT_WORD_ORDER == __BYTE_ORDER
 #if __BYTE_ORDER == __BIG_ENDIAN
   memcpy(output, &dVal, 8);
@@ -255,14 +276,19 @@ AMF_EncodeNumber(char *output, char *outend, double dVal)
   return output+8;
 }
 
+/* 将boolean值编码到缓冲区output中. 编码的格式为： | 类型(1字节) |  0或1(1字节 | */
 char *
 AMF_EncodeBoolean(char *output, char *outend, int bVal)
 {
+  // - 缓冲区大小判断
   if (output+2 > outend)
     return NULL;
 
+  // - 设置类型为 BOOLEN
   *output++ = AMF_BOOLEAN;
 
+
+  // - 设置布尔值
   *output++ = bVal ? 0x01 : 0x00;
 
   return output;

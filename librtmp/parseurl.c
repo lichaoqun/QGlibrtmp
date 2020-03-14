@@ -33,6 +33,15 @@
 int RTMP_ParseURL(const char *url, int *protocol, AVal *host, unsigned int *port,
 	AVal *playpath, AVal *app)
 {
+
+	/*
+  		url = “rtmp://pub1.guoshi.com:1935/pushstation/ 291?wsSecret=2b8 &wsTime=5302
+        协议名 ：RTMP_PROTOCOL_RTMP = 0;
+        主机名 ："pub1.guoshi.com";
+        端口号 ：1935; （可以没有）
+        App名  ： "pushstation";
+        播放路径："291?wsSecret=2b8 &wsTime=5302";
+	*/
 	char *p, *end, *col, *ques, *slash;
 
 	RTMP_Log(RTMP_LOGDEBUG, "Parsing...");
@@ -47,12 +56,17 @@ int RTMP_ParseURL(const char *url, int *protocol, AVal *host, unsigned int *port
 	/* Old School Parsing */
 
 	/* look for usual :// pattern */
+	// - 查找 "//"
 	p = strstr(url, "://");
 	if(!p) {
+		// - 没找到 直接返回
 		RTMP_Log(RTMP_LOGERROR, "RTMP URL: No :// in url!");
 		return FALSE;
 	}
+
+	// - 解析协议名称  (strncasecmp : 忽略大小写);
 	{
+	// - 协议名称的长度
 	int len = (int)(p-url);
 
 	if(len == 4 && strncasecmp(url, "rtmp", 4)==0)
@@ -77,8 +91,11 @@ int RTMP_ParseURL(const char *url, int *protocol, AVal *host, unsigned int *port
 
 	RTMP_Log(RTMP_LOGDEBUG, "Parsed protocol: %d", *protocol);
 
+// - 解析主机名称
 parsehost:
 	/* let's get the hostname */
+
+	// - 跳过 '://'
 	p+=3;
 
 	/* check for sudden death */
@@ -88,11 +105,11 @@ parsehost:
 	}
 
 	end   = p + strlen(p);
-	col   = strchr(p, ':');
-	ques  = strchr(p, '?');
-	slash = strchr(p, '/');
+	col   = strchr(p, ':'); // - host 之后第一次出现 : 的位置
+	ques  = strchr(p, '?'); // - host 之后第一次出现 ? 的位置
+	slash = strchr(p, '/'); // - host 之后第一次出现 / 的位置
 
-	{
+	{// - 域名
 	int hostlen;
 	if(slash)
 		hostlen = slash - p;
@@ -113,6 +130,7 @@ parsehost:
 	}
 
 	/* get the port number if available */
+	// - 端口号
 	if(*p == ':') {
 		unsigned int p2;
 		p++;
